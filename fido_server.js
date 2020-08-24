@@ -43,47 +43,45 @@ app.set('view engine', 'ejs');
 
 app.use(express.static(path.join(__dirname, "public"))); //to use static asset
 
+/*========================= 지문 등록 프로세스 ======================================*/
 //10&11.hido에서 CI,publicKeyB를 json으로 받아와서 DB에 추가
-request('https://127.0.0.1:3000/registration/key', function (error, response, body) {
-    //console.error('error:', error);
-    //console.log('statusCode:', response && response.statusCode); 
-    console.log('body:', body);
-/*
-    if (!error && response.statusCode == 200) {
-        var data = JSON.parse(body);
-        console.log(data);
+app.get("/registration/key", function(req, res){
+    var CI = req.body.CI;
+    var publicKeyB = req.body.publicKeyB;
 
-        var sessionKey = data.sessionKey;
-        var CI = data.CI;
-        var bankcode = data.bankcode;
+    if(CI!=null && publicKeyB != null){
+        var sql = "INSERT INTO fido (`CI`, `publicKeyB`) VALUES (?,?)";
+        connection.query(sql, [CI,publicKeyB], function (error, results) {
+                if (error) throw error;
+                else {
+                    console.log('publicKeyB 등록완료');
+                }
+            })
+    }else{
+        console.log("CI or publicKeyB 없음");
+    }
+});
 
-        app.post("/registration/key", function (req, res) {
-            var sql = "UPDATE fido SET CI = ? WHERE sessionKey = ?";
-            connection.query(
-                sql, [CI, sessionKey], function (error, results) {
-                    if (error) throw error;
-                    else {
-                        console.log("update ci fingerprint table");
-                        var dbSessionKey = results[0].sessionKey;
-                        var dbBankCode = results[0].bankcode;
-
-                        console.log(dbSessionKey, dbBankCode);
-
-                        if (dbSessionKey == sessionKey && dbBankCode == bankcode) {
-                            console.log("fingerprint table에 CI값 등록");
-                            res.send(1);
-                        }
-                        else {
-                            console.log("false");
-                        }
-                    }
-                });
-        });
-    }*/
+/*========================= 지문 인증 프로세스 ======================================*/
+// 7.FIDO 서버로 CI를 받아서 검색해서, HIDO 서버에 PublicKeyB 전송
+app.post("/auth", function (req, res) {
+    var CI = req.body.CI;//hido에서 넘어오는 값
+    if(CI!=null){
+        var sql = "SELECT * FROM fido WHERE CI = ?";
+        connection.query(sql, [CI], function (error, results) {
+                if (error) throw error;
+                else {
+                    var publicKeyB = results[0].publicKeyB;
+                    var jsonData = { "publicKeyB": publicKeyB, "CI": CI };
+                    res.json(jsonData);
+                }
+            })
+    }else{
+        console.log("CI 없음");
+    }
 });
 
 
-
 var httpsServer = https.createServer(credentials, app);
-httpsServer.listen(3001);
+httpsServer.listen(443);
 console.log('Server running');
